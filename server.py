@@ -26,7 +26,6 @@ def receivepackets(connectqueue): #method for receiving packets and sending them
             connectqueue.put(clientAddress) #if first received packet, send client address thru queue as well for thread that sends ack
         if(connectqueue.qsize()<21): #20 is the queue size, if full, drop packets (packet loss simulation)
             connectqueue.put(seq_n) #if queue is not full, put seq_n in queue for ack sending thread to receive
-            print("queue length:"+str(connectqueue.qsize())) #print queue length
         if(connectqueue.qsize()>20):
             print("real loss")
 
@@ -42,7 +41,6 @@ while True: # while loop for reading from queue and sending acks
     if(realclientAddress==-1): #if client address is not received from queue yet 
         realclientAddress=recvmessage # read from queue and set the client address as the receieved message from queue (the first packet sent from queue is the client address)
         continue
-    print("got from connectqueue:"+str(recvmessage))
     if recvmessage == rcv_base: # in order delivery
         rcv_base = recvmessage + 1 # rcv_base is incresed by one if expec
     serverSocket.sendto(str(rcv_base-1).encode(), realclientAddress) # send cumulative ack

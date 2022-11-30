@@ -10,7 +10,7 @@ tot=0
 win = 1      # window size
 no_pkt = 1000 # the total number of packets to send
 send_base = 0 # oldest packet sent
-loss_rate = 0.00 # loss rate
+loss_rate = 0.05 # loss rate
 seq = 0        # initial sequence number
 timeout_flag = 0 # timeout trigger
 ssthresh=999
@@ -36,7 +36,7 @@ def handling_ack():
     alpha = 0.125
     beta = 0.25
     timeout_interval = 10  # timeout interval
-
+    lost=[]
     
     pkt_delay = 0
     dev_rtt = 0
@@ -50,10 +50,12 @@ def handling_ack():
         if pkt_delay > timeout_interval and timeout_flag == 0:    # timeout detected
             print("timeout detected:", str(send_base), flush=True)
             print("timeout interval:", str(timeout_interval), flush=True)
-        
-            timeout_flag=1 #set timeout flag so that retransmission can occur
-            prev=send_base
-            print("                     win size and ssthresh"+ str(win)+" "+str(ssthresh))
+            dis=send_base in lost
+            if(dis == False):
+                
+                timeout_flag=1 #set timeout flag so that retransmission can occur
+            lost.append(send_base)
+           # print("                     win size and ssthresh"+ str(win)+" "+str(ssthresh))
             
         try: #try except block for receiving acks
             ack, serverAddress = clientSocket.recvfrom(2048) # read from port used by server to send acks
@@ -67,13 +69,13 @@ def handling_ack():
                 print("                     win size and ssthresh"+ str(win)+" "+str(ssthresh))
             if(prev==ack_n): #if received ack is same as the previous ack, count is increased by one
                 count=count+1
-                print(count)
+            
                 
             if(prev!=ack_n): #if received ack is not same as the previous ack, count is initialized to 0
                 count=0
             prev=ack_n # prev is updated to ack, if it is the same it will not be updated and the count will be increased in next iteration
 
-            print("got ack"+str(ack_n), flush=True)
+           #print("got ack"+str(ack_n), flush=True)
             
             if init_rtt_flag == 1: #if no previous packets, estimated rtt is the first packet delay, then the init_rtt flag is set to 0
                 estimated_rtt = pkt_delay
@@ -85,10 +87,11 @@ def handling_ack():
          
             #print("timeout interval:", str(timeout_interval), flush=True)
             if(count==3): # if 3 duplicate acks received retransmit and set ssthresh to half of window, then set window to 1
-                ssthresh=win//2 #set ssthresh to half of win
-                win=1 # and set win to 1
                 print("triple duplicate retransmission"+str(ack_n+1),flush=True) 
-                timeout_flag=1  # resend seq to server in case of triple duplicate ack
+                dis2=(ack_n+1) in lost
+                if(dis2 == False):
+                    timeout_flag=1  # resend seq to server in case of triple duplicate ack
+                lost.append(ack_n+1)
              
             
         except BlockingIOError:
@@ -112,7 +115,7 @@ while (True): # while loop in main thread to send packets to server
     while( seq < send_base + win and seq<1000): # send packets within window
       if random.random() < 1 - loss_rate: # send packets randomly with at percentage of loss rate
         clientSocket.sendto(str(seq).encode(), (serverIP, serverPort))  # send packet
-        print("client sent: "+str(seq),flush=True)
+       
       else:
         print("Packet Loss Simulated" + str(seq),flush=True)
       sent_time[seq] = time.time()    # save the time of departure of seq in the sent_time array
@@ -127,6 +130,8 @@ while (True): # while loop in main thread to send packets to server
         print("retransmission:", str(seq), flush=True)
         seq = seq + 1 # 1 is added to seq number
         timeout_flag = 0 #timeout flag is set to 0 again
+        ssthresh=win//2
+        win=1
     if (send_base==1000 and timeout_flag==0): # if get cumulative ack for 1000th packet, break the while loop
         break
 print("out of loop")   
