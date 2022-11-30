@@ -10,7 +10,7 @@ tot=0
 win = 1      # window size
 no_pkt = 1000 # the total number of packets to send
 send_base = 0 # oldest packet sent
-loss_rate = 0.05 # loss rate
+loss_rate = 0.1 # loss rate
 seq = 0        # initial sequence number
 timeout_flag = 0 # timeout trigger
 ssthresh=999
@@ -43,20 +43,16 @@ def handling_ack():
     init_rtt_flag = 1
     prev=-1
     count=0
-    while True: #while loop for handling acks
-        
+    while True: #while loop for handling acks    
         if sent_time[send_base] != 0:  #if the send_base packet was sent by packet sending thread
             pkt_delay = time.time() - sent_time[send_base]       #get packet delay be subtracting current time from sent time
         if pkt_delay > timeout_interval and timeout_flag == 0:    # timeout detected
             print("timeout detected:", str(send_base), flush=True)
             print("timeout interval:", str(timeout_interval), flush=True)
-            dis=send_base in lost
-            if(dis == False):
-                
+            dis=send_base in lost #check if timeout was already set by triple duplicate ack
+            if(dis == False):   # if not previously set, set the timeout flag             
                 timeout_flag=1 #set timeout flag so that retransmission can occur
-            lost.append(send_base)
-           # print("                     win size and ssthresh"+ str(win)+" "+str(ssthresh))
-            
+            lost.append(send_base) # append the send_base to lost array so timeout by triple duplicate ack will not affect win size
         try: #try except block for receiving acks
             ack, serverAddress = clientSocket.recvfrom(2048) # read from port used by server to send acks
             
@@ -66,17 +62,12 @@ def handling_ack():
                     win=win*2
                 else:
                     win=win+1 #window size is increased by 1 when anticipated ack message is received
-                print("                     win size and ssthresh"+ str(win)+" "+str(ssthresh))
+                print("                     win size and ssthresh"+ str(win)+" "+str(ssthresh)) #print changed window size
             if(prev==ack_n): #if received ack is same as the previous ack, count is increased by one
-                count=count+1
-            
-                
+                count=count+1                
             if(prev!=ack_n): #if received ack is not same as the previous ack, count is initialized to 0
                 count=0
             prev=ack_n # prev is updated to ack, if it is the same it will not be updated and the count will be increased in next iteration
-
-           #print("got ack"+str(ack_n), flush=True)
-            
             if init_rtt_flag == 1: #if no previous packets, estimated rtt is the first packet delay, then the init_rtt flag is set to 0
                 estimated_rtt = pkt_delay
                 init_rtt_flag = 0
@@ -84,8 +75,6 @@ def handling_ack():
                 estimated_rtt = (1-alpha)*estimated_rtt + alpha*pkt_delay
                 dev_rtt = (1-beta)*dev_rtt + beta*abs(pkt_delay-estimated_rtt)
             timeout_interval = estimated_rtt + 4*dev_rtt
-         
-            #print("timeout interval:", str(timeout_interval), flush=True)
             if(count==3): # if 3 duplicate acks received retransmit and set ssthresh to half of window, then set window to 1
                 print("triple duplicate retransmission"+str(ack_n+1),flush=True) 
                 dis2=(ack_n+1) in lost
@@ -120,9 +109,6 @@ while (True): # while loop in main thread to send packets to server
         print("Packet Loss Simulated" + str(seq),flush=True)
       sent_time[seq] = time.time()    # save the time of departure of seq in the sent_time array
       seq = seq + 1 # 1 is added to seq so that all packets in windows are sent to server
-      tot=tot+1
-    
-        
     if timeout_flag == 1: # when retransmission flag is 1, retransmission to server
         seq = send_base # seq number needs to be adjusted to send base
         clientSocket.sendto(str(seq).encode(), (serverIP, serverPort)) #retransmission of seq packet
@@ -139,7 +125,6 @@ realend=time.time()   #time of the entire process of sending and receiving ack o
 th_handling_ack.join() # terminating thread
 
 print (realend-realstart) #print total time
-print(tot)
 input()
 clientSocket.close() #close socket
 
